@@ -9,25 +9,27 @@ from sklearn.model_selection import train_test_split
 MAX_NUM_ROWS = 500000
 SMILES_COL_NAME = 'structure'
 
+
 def get_arguments():
     parser = argparse.ArgumentParser(description='Prepare data for training')
     parser.add_argument('infile', type=str, help='Input file name')
     parser.add_argument('outfile', type=str, help='Output file name')
-    parser.add_argument('--length', type=int, metavar='N', default = MAX_NUM_ROWS,
+    parser.add_argument('--length', type=int, metavar='N', default=MAX_NUM_ROWS,
                         help='Maximum number of rows to include (randomly sampled).')
-    parser.add_argument('--smiles_column', type=str, default = SMILES_COL_NAME,
+    parser.add_argument('--smiles_column', type=str, default=SMILES_COL_NAME,
                         help="Name of the column that contains the SMILES strings. Default: %s" % SMILES_COL_NAME)
     parser.add_argument('--property_column', type=str,
                         help="Name of the column that contains the property values to predict. Default: None")
     return parser.parse_args()
 
+
 def chunk_iterator(dataset, chunk_size=1000):
-    chunk_indices = np.array_split(np.arange(len(dataset)),
-                                    len(dataset)/chunk_size)
+    chunk_indices = np.array_split(np.arange(len(dataset)), len(dataset)/chunk_size)
     for chunk_ixs in chunk_indices:
         chunk = dataset[chunk_ixs]
         yield (chunk_ixs, chunk)
     raise StopIteration
+
 
 def main():
     args = get_arguments()
@@ -35,7 +37,7 @@ def main():
     keys = data[args.smiles_column].map(len) < 121
 
     if args.length <= len(keys):
-        data = data[keys].sample(n = args.length)
+        data = data[keys].sample(n=args.length)
     else:
         data = data[keys]
 
@@ -47,18 +49,19 @@ def main():
     del data
 
     train_idx, test_idx = map(np.array,
-                              train_test_split(structures.index, test_size = 0.20))
+                              train_test_split(structures.index, test_size=0.20))
 
     charset = list(reduce(lambda x, y: set(y) | x, structures, set()))
 
-    one_hot_encoded_fn = lambda row: map(lambda x: one_hot_array(x, len(charset)),
-                                                one_hot_index(row, charset))
+    # one_hot_encoded_fn = lambda row: map(lambda x: one_hot_array(x, len(charset)),
+    #                                             one_hot_index(row, charset))
+    def one_hot_encoded_fn(row):
+        return map(lambda x: one_hot_array(x, len(charset)), one_hot_index(row, charset))
 
     h5f = h5py.File(args.outfile, 'w')
-    h5f.create_dataset('charset', data = charset)
+    h5f.create_dataset('charset', data=charset)
 
-    def create_chunk_dataset(h5file, dataset_name, dataset, dataset_shape,
-                             chunk_size=1000, apply_fn=None):
+    def create_chunk_dataset(h5file, dataset_name, dataset, dataset_shape, chunk_size=1000, apply_fn=None):
         new_data = h5file.create_dataset(dataset_name, dataset_shape,
                                          chunks=tuple([chunk_size]+list(dataset_shape[1:])))
         for (chunk_ixs, chunk) in chunk_iterator(dataset):
@@ -77,8 +80,8 @@ def main():
                                                           structures[ch])))
 
     if args.property_column:
-        h5f.create_dataset('property_train', data = properties[train_idx])
-        h5f.create_dataset('property_test', data = properties[test_idx])
+        h5f.create_dataset('property_train', data=properties[train_idx])
+        h5f.create_dataset('property_test', data=properties[test_idx])
     h5f.close()
 
 if __name__ == '__main__':
